@@ -402,33 +402,6 @@ jobs:
           RUST_BACKTRACE: 1
           NEXTEST_STATUS_LEVEL: leak
 
-      - name: Free disk before hooks e2e
-        if: ${{ matrix.runner == 'ubuntu-24.04' && matrix.target == 'x86_64-unknown-linux-gnu' }}
-        run: rm -rf target/ci-test
-
-      - name: Set up Go (hooks e2e)
-        if: ${{ matrix.runner == 'ubuntu-24.04' && matrix.target == 'x86_64-unknown-linux-gnu' }}
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22.x"
-
-      - name: hooks e2e (debug)
-        if: ${{ matrix.runner == 'ubuntu-24.04' && matrix.target == 'x86_64-unknown-linux-gnu' }}
-        env:
-          CARGO_BUILD_JOBS: "2"
-          CARGO_PROFILE_DEV_DEBUG: "0"
-          RUSTFLAGS: "-C link-arg=-Wl,--no-keep-memory"
-        run: go run ../scripts/e2e_hooks_cli.go --codex-repo .. --profile debug --build
-
-      - name: hooks e2e (release)
-        if: ${{ matrix.runner == 'ubuntu-24.04' && matrix.target == 'x86_64-unknown-linux-gnu' }}
-        env:
-          CARGO_BUILD_JOBS: "2"
-          CARGO_PROFILE_RELEASE_LTO: "false"
-          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
-          RUSTFLAGS: "-C link-arg=-Wl,--no-keep-memory"
-        run: go run ../scripts/e2e_hooks_cli.go --codex-repo .. --profile release --build
-
       - name: Save cargo home cache
         if: always() && !cancelled() && steps.cache_cargo_home_restore.outputs.cache-hit != 'true'
         continue-on-error: true
@@ -472,10 +445,49 @@ jobs:
           echo "Tests failed. See logs for details."
           exit 1
 
+  hooks_e2e:
+    name: Hooks e2e — ubuntu-24.04 - x86_64-unknown-linux-gnu
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    needs: changed
+    if: ${{ needs.changed.outputs.codex == 'true' || needs.changed.outputs.workflows == 'true' || github.event_name == 'push' }}
+    defaults:
+      run:
+        working-directory: codex-rs
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@1.92
+
+      - name: Set up Go (hooks e2e)
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+          cache: false
+
+      - name: hooks e2e (debug)
+        env:
+          CARGO_BUILD_JOBS: "2"
+          CARGO_PROFILE_DEV_DEBUG: "0"
+          RUSTFLAGS: "-C link-arg=-Wl,--no-keep-memory"
+        run: go run ../scripts/e2e_hooks_cli.go --codex-repo .. --profile debug --build
+
+      - name: Free disk before release hooks e2e
+        run: rm -rf target/debug
+
+      - name: hooks e2e (release)
+        env:
+          CARGO_BUILD_JOBS: "2"
+          CARGO_PROFILE_RELEASE_LTO: "false"
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+          RUSTFLAGS: "-C link-arg=-Wl,--no-keep-memory"
+        run: go run ../scripts/e2e_hooks_cli.go --codex-repo .. --profile release --build
+
   # --- Gatherer job that you mark as the ONLY required status -----------------
   results:
     name: CI results (required)
-    needs: [changed, general, cargo_shear, lint_build, tests]
+    needs: [changed, general, cargo_shear, lint_build, tests, hooks_e2e]
     if: always()
     runs-on: ubuntu-24.04
     steps:
@@ -486,6 +498,7 @@ jobs:
           echo "shear  : ${{ needs.cargo_shear.result }}"
           echo "lint   : ${{ needs.lint_build.result }}"
           echo "tests  : ${{ needs.tests.result }}"
+          echo "hooks  : ${{ needs.hooks_e2e.result }}"
 
           # If nothing relevant changed (PR touching only root README, etc.),
           # declare success regardless of other jobs.
@@ -499,6 +512,7 @@ jobs:
           [[ '${{ needs.cargo_shear.result }}' == 'success' ]] || { echo 'cargo_shear failed'; exit 1; }
           [[ '${{ needs.lint_build.result }}' == 'success' ]] || { echo 'lint_build failed'; exit 1; }
           [[ '${{ needs.tests.result }}' == 'success' ]] || { echo 'tests failed'; exit 1; }
+          [[ '${{ needs.hooks_e2e.result }}' == 'success' ]] || { echo 'hooks_e2e failed'; exit 1; }
 
       - name: sccache summary note
         if: always()
