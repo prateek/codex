@@ -46,6 +46,8 @@ use ratatui::text::Span;
 use ratatui::widgets::Paragraph;
 use ratatui::widgets::Widget;
 
+use super::textarea::ViModeIndicator;
+
 /// The rendering inputs for the footer area under the composer.
 ///
 /// Callers are expected to construct `FooterProps` from higher-level state (`ChatComposer`,
@@ -60,6 +62,7 @@ pub(crate) struct FooterProps {
     pub(crate) use_shift_enter_hint: bool,
     pub(crate) is_task_running: bool,
     pub(crate) steer_enabled: bool,
+    pub(crate) vi_mode_indicator: Option<ViModeIndicator>,
     pub(crate) collaboration_modes_enabled: bool,
     pub(crate) is_wsl: bool,
     /// Which key the user must press again to quit.
@@ -1069,10 +1072,19 @@ mod tests {
                         compact
                     }
                 } else {
-                    Some(context_window_line(
+                    let mut line = context_window_line(
                         props.context_window_percent,
                         props.context_window_used_tokens,
-                    ))
+                    );
+                    if let Some(vi_mode) = props.vi_mode_indicator {
+                        line.push_span(" · ".dim());
+                        line.push_span("vi: ".dim());
+                        match vi_mode {
+                            ViModeIndicator::Normal => line.push_span("normal".dim()),
+                            ViModeIndicator::Insert => line.push_span("insert".dim()),
+                        }
+                    }
+                    Some(line)
                 };
                 let right_width = right_line
                     .as_ref()
@@ -1190,6 +1202,7 @@ mod tests {
                 use_shift_enter_hint: false,
                 is_task_running: false,
                 steer_enabled: false,
+                vi_mode_indicator: None,
                 collaboration_modes_enabled: false,
                 is_wsl: false,
                 quit_shortcut_key: key_hint::ctrl(KeyCode::Char('c')),
@@ -1208,6 +1221,7 @@ mod tests {
                 use_shift_enter_hint: true,
                 is_task_running: false,
                 steer_enabled: false,
+                vi_mode_indicator: None,
                 collaboration_modes_enabled: false,
                 is_wsl: false,
                 quit_shortcut_key: key_hint::ctrl(KeyCode::Char('c')),
@@ -1226,6 +1240,7 @@ mod tests {
                 use_shift_enter_hint: false,
                 is_task_running: false,
                 steer_enabled: false,
+                vi_mode_indicator: None,
                 collaboration_modes_enabled: true,
                 is_wsl: false,
                 quit_shortcut_key: key_hint::ctrl(KeyCode::Char('c')),
@@ -1244,6 +1259,7 @@ mod tests {
                 use_shift_enter_hint: false,
                 is_task_running: false,
                 steer_enabled: false,
+                vi_mode_indicator: None,
                 collaboration_modes_enabled: false,
                 is_wsl: false,
                 quit_shortcut_key: key_hint::ctrl(KeyCode::Char('c')),
@@ -1262,6 +1278,7 @@ mod tests {
                 use_shift_enter_hint: false,
                 is_task_running: true,
                 steer_enabled: false,
+                vi_mode_indicator: None,
                 collaboration_modes_enabled: false,
                 is_wsl: false,
                 quit_shortcut_key: key_hint::ctrl(KeyCode::Char('c')),
@@ -1280,6 +1297,7 @@ mod tests {
                 use_shift_enter_hint: false,
                 is_task_running: false,
                 steer_enabled: false,
+                vi_mode_indicator: None,
                 collaboration_modes_enabled: false,
                 is_wsl: false,
                 quit_shortcut_key: key_hint::ctrl(KeyCode::Char('c')),
@@ -1298,6 +1316,7 @@ mod tests {
                 use_shift_enter_hint: false,
                 is_task_running: false,
                 steer_enabled: false,
+                vi_mode_indicator: None,
                 collaboration_modes_enabled: false,
                 is_wsl: false,
                 quit_shortcut_key: key_hint::ctrl(KeyCode::Char('c')),
@@ -1316,6 +1335,7 @@ mod tests {
                 use_shift_enter_hint: false,
                 is_task_running: true,
                 steer_enabled: false,
+                vi_mode_indicator: None,
                 collaboration_modes_enabled: false,
                 is_wsl: false,
                 quit_shortcut_key: key_hint::ctrl(KeyCode::Char('c')),
@@ -1334,6 +1354,7 @@ mod tests {
                 use_shift_enter_hint: false,
                 is_task_running: false,
                 steer_enabled: false,
+                vi_mode_indicator: None,
                 collaboration_modes_enabled: false,
                 is_wsl: false,
                 quit_shortcut_key: key_hint::ctrl(KeyCode::Char('c')),
@@ -1352,6 +1373,7 @@ mod tests {
                 use_shift_enter_hint: false,
                 is_task_running: true,
                 steer_enabled: false,
+                vi_mode_indicator: None,
                 collaboration_modes_enabled: false,
                 is_wsl: false,
                 quit_shortcut_key: key_hint::ctrl(KeyCode::Char('c')),
@@ -1370,6 +1392,7 @@ mod tests {
                 use_shift_enter_hint: false,
                 is_task_running: true,
                 steer_enabled: true,
+                vi_mode_indicator: None,
                 collaboration_modes_enabled: false,
                 is_wsl: false,
                 quit_shortcut_key: key_hint::ctrl(KeyCode::Char('c')),
@@ -1386,6 +1409,7 @@ mod tests {
             use_shift_enter_hint: false,
             is_task_running: false,
             steer_enabled: false,
+            vi_mode_indicator: None,
             collaboration_modes_enabled: true,
             is_wsl: false,
             quit_shortcut_key: key_hint::ctrl(KeyCode::Char('c')),
@@ -1415,6 +1439,7 @@ mod tests {
             use_shift_enter_hint: false,
             is_task_running: true,
             steer_enabled: false,
+            vi_mode_indicator: None,
             collaboration_modes_enabled: true,
             is_wsl: false,
             quit_shortcut_key: key_hint::ctrl(KeyCode::Char('c')),
@@ -1437,6 +1462,7 @@ mod tests {
             use_shift_enter_hint: false,
             is_task_running: false,
             steer_enabled: false,
+            vi_mode_indicator: None,
             collaboration_modes_enabled: false,
             is_wsl: false,
             quit_shortcut_key: key_hint::ctrl(KeyCode::Char('c')),
@@ -1454,6 +1480,7 @@ mod tests {
             use_shift_enter_hint: false,
             is_task_running: false,
             steer_enabled: false,
+            vi_mode_indicator: None,
             collaboration_modes_enabled: true,
             is_wsl: false,
             quit_shortcut_key: key_hint::ctrl(KeyCode::Char('c')),
@@ -1476,6 +1503,7 @@ mod tests {
             use_shift_enter_hint: false,
             is_task_running: false,
             steer_enabled: false,
+            vi_mode_indicator: None,
             collaboration_modes_enabled: true,
             is_wsl: false,
             quit_shortcut_key: key_hint::ctrl(KeyCode::Char('c')),
@@ -1498,6 +1526,7 @@ mod tests {
             use_shift_enter_hint: false,
             is_task_running: false,
             steer_enabled: false,
+            vi_mode_indicator: None,
             collaboration_modes_enabled: false,
             is_wsl: false,
             quit_shortcut_key: key_hint::ctrl(KeyCode::Char('c')),
@@ -1521,6 +1550,7 @@ mod tests {
             use_shift_enter_hint: false,
             is_task_running: false,
             steer_enabled: false,
+            vi_mode_indicator: None,
             collaboration_modes_enabled: true,
             is_wsl: false,
             quit_shortcut_key: key_hint::ctrl(KeyCode::Char('c')),
@@ -1548,6 +1578,7 @@ mod tests {
             use_shift_enter_hint: false,
             is_task_running: false,
             steer_enabled: false,
+            vi_mode_indicator: None,
             collaboration_modes_enabled: true,
             is_wsl: false,
             quit_shortcut_key: key_hint::ctrl(KeyCode::Char('c')),

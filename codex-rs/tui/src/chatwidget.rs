@@ -2858,6 +2858,9 @@ impl ChatWidget {
             .set_steer_enabled(widget.config.features.enabled(Feature::Steer));
         widget
             .bottom_pane
+            .set_vi_mode_enabled(widget.config.features.enabled(Feature::TuiViMode));
+        widget
+            .bottom_pane
             .set_status_line_enabled(!widget.configured_status_line_items().is_empty());
         widget.bottom_pane.set_collaboration_modes_enabled(
             widget.config.features.enabled(Feature::CollaborationModes),
@@ -3010,6 +3013,9 @@ impl ChatWidget {
             .set_steer_enabled(widget.config.features.enabled(Feature::Steer));
         widget
             .bottom_pane
+            .set_vi_mode_enabled(widget.config.features.enabled(Feature::TuiViMode));
+        widget
+            .bottom_pane
             .set_status_line_enabled(!widget.configured_status_line_items().is_empty());
         widget.bottom_pane.set_collaboration_modes_enabled(
             widget.config.features.enabled(Feature::CollaborationModes),
@@ -3051,6 +3057,25 @@ impl ChatWidget {
                 self.bottom_pane.clear_quit_shortcut_hint();
                 self.quit_shortcut_expires_at = None;
                 self.quit_shortcut_key = None;
+            }
+            KeyEvent {
+                code: KeyCode::Char('r'),
+                modifiers: KeyModifiers::CONTROL,
+                kind: KeyEventKind::Press,
+                ..
+            }
+            | KeyEvent {
+                code: KeyCode::Char('\u{0012}'),
+                modifiers: KeyModifiers::NONE,
+                kind: KeyEventKind::Press,
+                ..
+            } if self.config.features.enabled(Feature::TuiCommandHistory)
+                && self.bottom_pane.no_modal_or_popup_active() =>
+            {
+                self.bottom_pane.show_selection_view(
+                    crate::bottom_pane::history_search_view_params(&self.config.codex_home),
+                );
+                return;
             }
             KeyEvent {
                 code: KeyCode::Char(c),
@@ -6021,8 +6046,10 @@ impl ChatWidget {
         } else {
             self.config.features.disable(feature);
         }
-        if feature == Feature::Steer {
-            self.bottom_pane.set_steer_enabled(enabled);
+        match feature {
+            Feature::Steer => self.bottom_pane.set_steer_enabled(enabled),
+            Feature::TuiViMode => self.bottom_pane.set_vi_mode_enabled(enabled),
+            _ => {}
         }
         if feature == Feature::CollaborationModes {
             self.bottom_pane.set_collaboration_modes_enabled(enabled);

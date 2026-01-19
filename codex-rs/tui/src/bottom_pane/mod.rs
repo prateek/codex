@@ -70,6 +70,7 @@ pub mod custom_prompt_view;
 mod experimental_features_view;
 mod file_search_popup;
 mod footer;
+mod history_search_view;
 mod list_selection_view;
 mod prompt_args;
 mod skill_popup;
@@ -83,6 +84,7 @@ pub(crate) use feedback_view::FeedbackAudience;
 pub(crate) use feedback_view::feedback_disabled_params;
 pub(crate) use feedback_view::feedback_selection_params;
 pub(crate) use feedback_view::feedback_upload_consent_params;
+pub(crate) use history_search_view::history_search_view_params;
 pub(crate) use skills_toggle_view::SkillsToggleItem;
 pub(crate) use skills_toggle_view::SkillsToggleView;
 pub(crate) use status_line_setup::StatusLineItem;
@@ -155,6 +157,7 @@ pub(crate) struct BottomPane {
     disable_paste_burst: bool,
     is_task_running: bool,
     esc_backtrack_hint: bool,
+    vi_mode_enabled: bool,
     animations_enabled: bool,
 
     /// Inline status indicator shown above the composer while a task is running.
@@ -215,6 +218,7 @@ impl BottomPane {
             unified_exec_footer: UnifiedExecFooter::new(),
             queued_user_messages: QueuedUserMessages::new(),
             esc_backtrack_hint: false,
+            vi_mode_enabled: false,
             animations_enabled,
             context_window_percent: None,
             context_window_used_tokens: None,
@@ -285,6 +289,16 @@ impl BottomPane {
     pub fn set_personality_command_enabled(&mut self, enabled: bool) {
         self.composer.set_personality_command_enabled(enabled);
         self.request_redraw();
+    }
+
+    pub fn set_vi_mode_enabled(&mut self, enabled: bool) {
+        self.vi_mode_enabled = enabled;
+        self.composer.set_vi_mode_enabled(enabled);
+        self.request_redraw();
+    }
+
+    fn allow_codex_esc_behavior(&self) -> bool {
+        self.composer.allow_codex_esc_behavior()
     }
 
     pub fn status_widget(&self) -> Option<&StatusIndicatorWidget> {
@@ -358,7 +372,7 @@ impl BottomPane {
             // If a task is running and a status line is visible, allow Esc to
             // send an interrupt even while the composer has focus.
             // When a popup is active, prefer dismissing it over interrupting the task.
-            if key_event.code == KeyCode::Esc
+            if self.allow_codex_esc_behavior() && key_event.code == KeyCode::Esc
                 && self.is_task_running
                 && !self.composer.popup_active()
                 && let Some(status) = &self.status
@@ -593,6 +607,11 @@ impl BottomPane {
         self.status.is_some()
     }
 
+    #[cfg(test)]
+    pub(crate) fn codex_esc_behavior_allowed(&self) -> bool {
+        self.allow_codex_esc_behavior()
+    }
+
     pub(crate) fn show_esc_backtrack_hint(&mut self) {
         self.esc_backtrack_hint = true;
         self.composer.set_esc_backtrack_hint(true);
@@ -745,7 +764,10 @@ impl BottomPane {
     /// overlays or popups and not running a task. This is the safe context to
     /// use Esc-Esc for backtracking from the main view.
     pub(crate) fn is_normal_backtrack_mode(&self) -> bool {
-        !self.is_task_running && self.view_stack.is_empty() && !self.composer.popup_active()
+        self.allow_codex_esc_behavior()
+            && !self.is_task_running
+            && self.view_stack.is_empty()
+            && !self.composer.popup_active()
     }
 
     /// Return true when no popups or modal views are active, regardless of task state.

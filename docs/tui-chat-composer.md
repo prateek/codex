@@ -197,6 +197,27 @@ and keeps only attachments whose placeholders still appear in the new text. Imag
 then normalized to `[Image #M]..[Image #N]`, where `M` starts after the number of remote image
 rows, to keep attachment mapping consistent after edits.
 
+## Experimental editing features (Reedline)
+
+Two beta flags extend the composer with Reedline-powered editing:
+
+- `tui_vi_mode`: use Vi keybindings in the prompt composer.
+  - `Esc` is routed to the textarea (insert ↔ normal).
+  - To avoid ambiguity, Codex’s Esc-based UI behavior (interrupt/backtrack) only runs in vi
+    *normal* mode (press `Esc` once first if you are in insert mode).
+  - The footer state indicator shows `vi: insert` / `vi: normal`.
+- `tui_command_history`: enable Ctrl-R history search.
+  - `Ctrl+R` opens a searchable selection view backed by the persistent history file at
+    `$CODEX_HOME/history.jsonl`.
+  - The selected entry is pasted into the composer for further editing/submission.
+
+Notes:
+
+- Up/Down history navigation remains available and continues to use the same persistent history
+  file.
+- History persistence is controlled by the existing `[history]` config (`persistence = "none"`
+  disables writing).
+
 ## Paste burst: concepts and assumptions
 
 The burst detector is intentionally conservative: it only processes “plain” character input
