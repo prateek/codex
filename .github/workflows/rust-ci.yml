@@ -414,10 +414,19 @@ jobs:
 
       - name: hooks e2e (debug)
         if: ${{ matrix.runner == 'ubuntu-24.04' && matrix.target == 'x86_64-unknown-linux-gnu' }}
+        env:
+          CARGO_BUILD_JOBS: "2"
+          CARGO_PROFILE_DEV_DEBUG: "0"
+          RUSTFLAGS: "-C link-arg=-Wl,--no-keep-memory"
         run: go run ../scripts/e2e_hooks_cli.go --codex-repo .. --profile debug --build
 
       - name: hooks e2e (release)
         if: ${{ matrix.runner == 'ubuntu-24.04' && matrix.target == 'x86_64-unknown-linux-gnu' }}
+        env:
+          CARGO_BUILD_JOBS: "2"
+          CARGO_PROFILE_RELEASE_LTO: "false"
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+          RUSTFLAGS: "-C link-arg=-Wl,--no-keep-memory"
         run: go run ../scripts/e2e_hooks_cli.go --codex-repo .. --profile release --build
 
       - name: Save cargo home cache
