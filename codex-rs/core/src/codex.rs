@@ -17,6 +17,7 @@ use crate::compact;
 use crate::compact::run_inline_auto_compact_task;
 use crate::compact::should_use_remote_compact_task;
 use crate::compact_remote::run_inline_remote_auto_compact_task;
+use crate::event_hooks::EventHookRunner;
 use crate::exec_policy::ExecPolicyManager;
 use crate::features::Feature;
 use crate::features::Features;
@@ -234,6 +235,7 @@ impl Codex {
         agent_control: AgentControl,
     ) -> CodexResult<CodexSpawnOk> {
         let (tx_sub, rx_sub) = async_channel::bounded(SUBMISSION_CHANNEL_CAPACITY);
+        let (tx_event_internal, rx_event_internal) = async_channel::unbounded();
         let (tx_event, rx_event) = async_channel::unbounded();
 
         let loaded_skills = skills_manager.skills_for_config(&config);
@@ -304,7 +306,7 @@ impl Codex {
             auth_manager.clone(),
             models_manager.clone(),
             exec_policy,
-            tx_event.clone(),
+            tx_event_internal.clone(),
             agent_status_tx.clone(),
             conversation_history,
             session_source_clone,
@@ -317,6 +319,19 @@ impl Codex {
             map_session_init_error(&e, &config.codex_home)
         })?;
         let thread_id = session.conversation_id;
+
+        let hook_runner = Arc::new(EventHookRunner::new(
+            config.hooks.clone(),
+            config.cwd.clone(),
+        ));
+        tokio::spawn(async move {
+            while let Ok(event) = rx_event_internal.recv().await {
+                hook_runner.handle_event(&event);
+                if tx_event.send(event).await.is_err() {
+                    break;
+                }
+            }
+        });
 
         // This task will run until Op::Shutdown is received.
         tokio::spawn(submission_loop(session, config, rx_sub));

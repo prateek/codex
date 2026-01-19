@@ -185,6 +185,16 @@ pub struct Config {
     /// If unset the feature is disabled.
     pub notify: Option<Vec<String>>,
 
+    /// Optional external commands to spawn when certain protocol events are emitted.
+    ///
+    /// Keys are event type strings in `snake_case` (for example `turn_started`,
+    /// `exec_approval_request`). Each value is a list of commands expressed as argv arrays.
+    ///
+    /// Commands are invoked as-is (no implicit JSON argument). Codex sets
+    /// `CODEX_HOOK_EVENT`, `CODEX_HOOK_SUBMISSION_ID`, and `CODEX_HOOK_SEQ` environment
+    /// variables for each hook invocation.
+    pub hooks: HashMap<String, Vec<Vec<String>>>,
+
     /// TUI notifications preference. When set, the TUI will send OSC 9 notifications on approvals
     /// and turn completions when not focused.
     pub tui_notifications: Notifications,
@@ -799,6 +809,13 @@ pub struct ConfigToml {
     /// Optional external command to spawn for end-user notifications.
     #[serde(default)]
     pub notify: Option<Vec<String>>,
+
+    /// Optional external commands to spawn when certain protocol events are emitted.
+    ///
+    /// Keys are event type strings in `snake_case` (for example `turn_started`,
+    /// `exec_approval_request`). Each value is a list of commands expressed as argv arrays.
+    #[serde(default)]
+    pub hooks: Option<HashMap<String, Vec<Vec<String>>>>,
 
     /// System instructions.
     pub instructions: Option<String>,
@@ -1472,6 +1489,7 @@ impl Config {
             forced_auto_mode_downgraded_on_windows,
             shell_environment_policy,
             notify: cfg.notify,
+            hooks: cfg.hooks.unwrap_or_default(),
             user_instructions,
             base_instructions,
             developer_instructions,
@@ -3585,6 +3603,7 @@ model_verbosity = "high"
                 shell_environment_policy: ShellEnvironmentPolicy::default(),
                 user_instructions: None,
                 notify: None,
+                hooks: HashMap::new(),
                 cwd: fixture.cwd(),
                 cli_auth_credentials_store_mode: Default::default(),
                 mcp_servers: Constrained::allow_any(HashMap::new()),
@@ -3672,6 +3691,7 @@ model_verbosity = "high"
             shell_environment_policy: ShellEnvironmentPolicy::default(),
             user_instructions: None,
             notify: None,
+            hooks: HashMap::new(),
             cwd: fixture.cwd(),
             cli_auth_credentials_store_mode: Default::default(),
             mcp_servers: Constrained::allow_any(HashMap::new()),
@@ -3774,6 +3794,7 @@ model_verbosity = "high"
             shell_environment_policy: ShellEnvironmentPolicy::default(),
             user_instructions: None,
             notify: None,
+            hooks: HashMap::new(),
             cwd: fixture.cwd(),
             cli_auth_credentials_store_mode: Default::default(),
             mcp_servers: Constrained::allow_any(HashMap::new()),
@@ -3862,6 +3883,7 @@ model_verbosity = "high"
             shell_environment_policy: ShellEnvironmentPolicy::default(),
             user_instructions: None,
             notify: None,
+            hooks: HashMap::new(),
             cwd: fixture.cwd(),
             cli_auth_credentials_store_mode: Default::default(),
             mcp_servers: Constrained::allow_any(HashMap::new()),

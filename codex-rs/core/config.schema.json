@@ -199,6 +199,20 @@
         }
       ]
     },
+    "hooks": {
+      "description": "Optional external commands to spawn when certain protocol events are emitted.\n\nKeys are event type strings in `snake_case` (for example `turn_started`, `exec_approval_request`). Each value is a list of commands expressed as argv arrays.",
+      "default": null,
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "instructions": {
       "description": "System instructions.",
       "type": "string"
@@ -359,12 +373,12 @@
     },
     "shell_environment_policy": {
       "default": {
-        "inherit": null,
-        "ignore_default_excludes": null,
         "exclude": null,
-        "set": null,
+        "experimental_use_profile": null,
+        "ignore_default_excludes": null,
         "include_only": null,
-        "experimental_use_profile": null
+        "inherit": null,
+        "set": null
       },
       "allOf": [
         {
