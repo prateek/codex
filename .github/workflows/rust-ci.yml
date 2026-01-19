@@ -406,7 +406,7 @@ jobs:
         if: ${{ matrix.runner == 'ubuntu-24.04' && matrix.target == 'x86_64-unknown-linux-gnu' }}
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22.x'
+          go-version: "1.22.x"
 
       - name: hooks e2e (debug)
         if: ${{ matrix.runner == 'ubuntu-24.04' && matrix.target == 'x86_64-unknown-linux-gnu' }}
