@@ -18,6 +18,19 @@ Codex can run a notification hook when the agent finishes a turn. See the config
 
 - https://developers.openai.com/codex/config-reference
 
+## Hooks
+
+Codex can run external commands when protocol events are emitted using the `[hooks]` table in `~/.codex/config.toml`.
+
+Each key is an event type string in `snake_case` (for example `turn_started`, `exec_approval_request`). Each value is a list of commands expressed as argv arrays:
+
+```toml
+[hooks]
+turn_complete = [["say", "codex finished"]]
+```
+
+Codex sets `CODEX_HOOK_EVENT`, `CODEX_HOOK_SUBMISSION_ID`, and `CODEX_HOOK_SEQ` environment variables for each hook invocation.
+
 ## JSON Schema
 
 The generated JSON Schema for `config.toml` lives at `codex-rs/core/config.schema.json`.
