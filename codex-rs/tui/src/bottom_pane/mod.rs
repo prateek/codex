@@ -372,7 +372,8 @@ impl BottomPane {
             // If a task is running and a status line is visible, allow Esc to
             // send an interrupt even while the composer has focus.
             // When a popup is active, prefer dismissing it over interrupting the task.
-            if self.allow_codex_esc_behavior() && key_event.code == KeyCode::Esc
+            if self.allow_codex_esc_behavior()
+                && key_event.code == KeyCode::Esc
                 && self.is_task_running
                 && !self.composer.popup_active()
                 && let Some(status) = &self.status

@@ -1800,7 +1800,7 @@ async fn random_key_sequences_do_not_panic_with_vi_and_history_search() {
 
         while let Ok(event) = rx.try_recv() {
             if let AppEvent::SetComposerText(text) = event {
-                chat.set_composer_text(text);
+                chat.set_composer_text(text, Vec::new(), Vec::new());
             }
         }
         while op_rx.try_recv().is_ok() {}

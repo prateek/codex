@@ -479,8 +479,8 @@ impl ChatComposer {
                 }
             }
             ActivePopup::Skill(_) => {
-                if let Some(tok) = self.current_skill_token() {
-                    self.dismissed_skill_popup_token = Some(tok);
+                if let Some(tok) = self.current_mention_token() {
+                    self.dismissed_mention_popup_token = Some(tok);
                 }
             }
             ActivePopup::Command(_) | ActivePopup::None => {}
@@ -2996,9 +2996,9 @@ impl ChatComposer {
             if self.dismissed_file_popup_token.as_ref() != file_token.as_ref() {
                 self.dismissed_file_popup_token = None;
             }
-            let skill_token = self.current_skill_token();
-            if self.dismissed_skill_popup_token.as_ref() != skill_token.as_ref() {
-                self.dismissed_skill_popup_token = None;
+            let mention_token = self.current_mention_token();
+            if self.dismissed_mention_popup_token.as_ref() != mention_token.as_ref() {
+                self.dismissed_mention_popup_token = None;
             }
             return;
         }
@@ -3666,10 +3666,19 @@ impl ChatComposer {
                         compact
                     }
                 } else {
-                    Some(context_window_line(
+                    let mut line = context_window_line(
                         footer_props.context_window_percent,
                         footer_props.context_window_used_tokens,
-                    ))
+                    );
+                    if let Some(vi_mode) = footer_props.vi_mode_indicator {
+                        line.push_span(" · ".dim());
+                        line.push_span("vi: ".dim());
+                        match vi_mode {
+                            ViModeIndicator::Normal => line.push_span("normal".dim()),
+                            ViModeIndicator::Insert => line.push_span("insert".dim()),
+                        }
+                    }
+                    Some(line)
                 };
                 let right_width = right_line.as_ref().map(|l| l.width() as u16).unwrap_or(0);
                 if status_line_active
@@ -6841,7 +6850,7 @@ mod tests {
         );
 
         composer.set_vi_mode_enabled(true);
-        composer.set_text_content("/".to_string());
+        composer.set_text_content("/".to_string(), Vec::new(), Vec::new());
 
         assert!(composer.popup_active());
         assert_eq!(
@@ -6871,7 +6880,7 @@ mod tests {
         );
 
         composer.set_vi_mode_enabled(true);
-        composer.set_text_content("@foo".to_string());
+        composer.set_text_content("@foo".to_string(), Vec::new(), Vec::new());
 
         assert!(composer.popup_active());
         assert_eq!(
@@ -6922,11 +6931,14 @@ mod tests {
             description: "desc".to_string(),
             short_description: None,
             interface: None,
+            dependencies: None,
+            policy: None,
+            permissions: None,
             path: PathBuf::from("/tmp/skill_foo"),
             scope: SkillScope::User,
         }]));
         composer.set_vi_mode_enabled(true);
-        composer.set_text_content("$foo".to_string());
+        composer.set_text_content("$foo".to_string(), Vec::new(), Vec::new());
 
         assert!(composer.popup_active());
         assert_eq!(
@@ -6937,7 +6949,7 @@ mod tests {
         composer.handle_key_event(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
 
         let dismissed = composer
-            .dismissed_skill_popup_token
+            .dismissed_mention_popup_token
             .clone()
             .expect("dismissed token");
         assert_eq!(
@@ -6953,7 +6965,7 @@ mod tests {
         );
         assert!(!composer.popup_active());
         assert_eq!(
-            composer.dismissed_skill_popup_token.as_ref(),
+            composer.dismissed_mention_popup_token.as_ref(),
             Some(&dismissed)
         );
     }
@@ -6971,7 +6983,7 @@ mod tests {
         );
 
         composer.set_vi_mode_enabled(true);
-        composer.set_text_content("@foo".to_string());
+        composer.set_text_content("@foo".to_string(), Vec::new(), Vec::new());
 
         composer.handle_key_event(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
 
@@ -6982,9 +6994,9 @@ mod tests {
         assert_eq!(composer.dismissed_file_popup_token.as_deref(), Some("foo"));
 
         // Simulate normal-mode edits that remove and then restore the token.
-        composer.set_text_content(String::new());
+        composer.set_text_content(String::new(), Vec::new(), Vec::new());
         assert_eq!(composer.dismissed_file_popup_token.as_deref(), None);
-        composer.set_text_content("@foo".to_string());
+        composer.set_text_content("@foo".to_string(), Vec::new(), Vec::new());
 
         // Returning to insert mode should show the popup again.
         composer.handle_key_event(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
@@ -7014,11 +7026,14 @@ mod tests {
             description: "desc".to_string(),
             short_description: None,
             interface: None,
+            dependencies: None,
+            policy: None,
+            permissions: None,
             path: PathBuf::from("/tmp/skill_foo"),
             scope: SkillScope::User,
         }]));
         composer.set_vi_mode_enabled(true);
-        composer.set_text_content("$foo".to_string());
+        composer.set_text_content("$foo".to_string(), Vec::new(), Vec::new());
 
         composer.handle_key_event(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
 
@@ -7026,12 +7041,15 @@ mod tests {
             composer.textarea.vi_mode_indicator(),
             Some(ViModeIndicator::Normal)
         );
-        assert_eq!(composer.dismissed_skill_popup_token.as_deref(), Some("foo"));
+        assert_eq!(
+            composer.dismissed_mention_popup_token.as_deref(),
+            Some("foo")
+        );
 
         // Simulate normal-mode edits that remove and then restore the token.
-        composer.set_text_content(String::new());
-        assert_eq!(composer.dismissed_skill_popup_token.as_deref(), None);
-        composer.set_text_content("$foo".to_string());
+        composer.set_text_content(String::new(), Vec::new(), Vec::new());
+        assert_eq!(composer.dismissed_mention_popup_token.as_deref(), None);
+        composer.set_text_content("$foo".to_string(), Vec::new(), Vec::new());
 
         // Returning to insert mode should show the popup again.
         composer.handle_key_event(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
