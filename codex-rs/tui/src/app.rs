@@ -1714,6 +1714,10 @@ impl App {
             AppEvent::RefreshConnectors { force_refetch } => {
                 self.chat_widget.refresh_connectors(force_refetch);
             }
+            AppEvent::SetComposerText(text) => {
+                self.chat_widget
+                    .set_composer_text(text, Vec::new(), Vec::new());
+            }
             AppEvent::StartFileSearch(query) => {
                 self.file_search.on_user_query(query);
             }

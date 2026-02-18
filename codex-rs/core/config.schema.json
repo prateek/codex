@@ -307,6 +307,12 @@
             "steer": {
               "type": "boolean"
             },
+            "tui_command_history": {
+              "type": "boolean"
+            },
+            "tui_vi_mode": {
+              "type": "boolean"
+            },
             "undo": {
               "type": "boolean"
             },
@@ -1446,6 +1452,12 @@
           "type": "boolean"
         },
         "steer": {
+          "type": "boolean"
+        },
+        "tui_command_history": {
+          "type": "boolean"
+        },
+        "tui_vi_mode": {
           "type": "boolean"
         },
         "undo": {

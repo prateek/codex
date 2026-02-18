@@ -117,6 +117,10 @@ pub enum Feature {
     MemoryTool,
     /// Append additional AGENTS.md guidance to user instructions.
     ChildAgentsMd,
+    /// Use Vi keybindings in the TUI chat composer.
+    TuiViMode,
+    /// Enable TUI command history search (e.g. Ctrl-R) in the chat composer.
+    TuiCommandHistory,
     /// Enforce UTF8 output in Powershell.
     PowershellUtf8,
     /// Compress request bodies (zstd) when sending streaming requests to codex-backend.
@@ -603,6 +607,26 @@ pub const FEATURES: &[FeatureSpec] = &[
         id: Feature::SkillEnvVarDependencyPrompt,
         key: "skill_env_var_dependency_prompt",
         stage: Stage::UnderDevelopment,
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::TuiViMode,
+        key: "tui_vi_mode",
+        stage: Stage::Experimental {
+            name: "Vi keybindings",
+            menu_description: "Use Vi keybindings in the prompt composer.",
+            announcement: "NEW! Try Vi keybindings in the prompt composer. Enable in /experimental!",
+        },
+        default_enabled: false,
+    },
+    FeatureSpec {
+        id: Feature::TuiCommandHistory,
+        key: "tui_command_history",
+        stage: Stage::Experimental {
+            name: "Composer history search",
+            menu_description: "Enable Ctrl-R history search in the prompt composer.",
+            announcement: "NEW! Try Ctrl-R history search in the prompt composer. Enable in /experimental!",
+        },
         default_enabled: false,
     },
     FeatureSpec {
