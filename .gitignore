@@ -90,5 +90,3 @@ CHANGELOG.ignore.md
 # Python bytecode files
 __pycache__/
 *.pyc
-
-codex-rs/tui/src/status/snapshots/*.snap.new
