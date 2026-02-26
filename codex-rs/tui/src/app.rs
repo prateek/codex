@@ -682,7 +682,7 @@ impl App {
             .add_info_message(format!("Opened {url} in your browser."), None);
     }
 
-    async fn shutdown_current_thread(&mut self) {
+    pub(crate) async fn shutdown_current_thread(&mut self) {
         if let Some(thread_id) = self.chat_widget.thread_id() {
             // Clear any in-flight rollback guard when switching threads.
             self.backtrack.pending_rollback = None;
@@ -910,7 +910,7 @@ impl App {
         Ok(())
     }
 
-    fn reset_thread_event_state(&mut self) {
+    pub(crate) fn reset_thread_event_state(&mut self) {
         self.thread_event_channels.clear();
         self.active_thread_id = None;
         self.active_thread_rx = None;
