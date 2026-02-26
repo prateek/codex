@@ -3446,6 +3446,9 @@ impl ChatWidget {
                     self.add_info_message("Rollout path is not available yet.".to_string(), None);
                 }
             }
+            SlashCommand::Tree => {
+                self.app_event_tx.send(AppEvent::TreeShow);
+            }
             SlashCommand::TestApproval => {
                 use codex_core::protocol::EventMsg;
                 use std::collections::HashMap;
@@ -3583,6 +3586,59 @@ impl ChatWidget {
                     .send(AppEvent::BeginWindowsSandboxGrantReadRoot {
                         path: prepared_args,
                     });
+                self.bottom_pane.drain_pending_submission_state();
+            }
+            SlashCommand::Tree if !trimmed.is_empty() => {
+                let Some((prepared_args, _prepared_elements)) =
+                    self.bottom_pane.prepare_inline_args_submission(false)
+                else {
+                    return;
+                };
+                let parts: Vec<&str> = prepared_args.trim().splitn(2, ' ').collect();
+                match parts[0] {
+                    "label" => {
+                        if let Some(label) = parts.get(1) {
+                            let label = label.trim().to_string();
+                            if label.is_empty() {
+                                self.add_error_message(
+                                    "Usage: /tree label <name>".to_string(),
+                                );
+                            } else {
+                                self.app_event_tx
+                                    .send(AppEvent::TreeLabel { label });
+                            }
+                        } else {
+                            self.add_error_message(
+                                "Usage: /tree label <name>".to_string(),
+                            );
+                        }
+                    }
+                    "go" => {
+                        if let Some(label) = parts.get(1) {
+                            let label = label.trim().to_string();
+                            if label.is_empty() {
+                                self.add_error_message(
+                                    "Usage: /tree go <label>".to_string(),
+                                );
+                            } else {
+                                self.app_event_tx
+                                    .send(AppEvent::TreeGo { label });
+                            }
+                        } else {
+                            self.add_error_message(
+                                "Usage: /tree go <label>".to_string(),
+                            );
+                        }
+                    }
+                    "list" => {
+                        self.app_event_tx.send(AppEvent::TreeShow);
+                    }
+                    other => {
+                        self.add_error_message(format!(
+                            "Unknown /tree subcommand '{other}'. Use: label, go, list"
+                        ));
+                    }
+                }
                 self.bottom_pane.drain_pending_submission_state();
             }
             _ => self.dispatch_command(cmd),

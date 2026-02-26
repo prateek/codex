@@ -67,6 +67,7 @@ mod cli;
 mod clipboard_paste;
 mod collaboration_modes;
 mod color;
+mod conversation_tree;
 pub mod custom_terminal;
 mod cwd_prompt;
 mod debug_config;

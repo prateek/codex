@@ -44,6 +44,7 @@ pub enum SlashCommand {
     Exit,
     Feedback,
     Rollout,
+    Tree,
     Ps,
     Clean,
     Personality,
@@ -75,6 +76,7 @@ impl SlashCommand {
             SlashCommand::Status => "show current session configuration and token usage",
             SlashCommand::DebugConfig => "show config layers and requirement sources for debugging",
             SlashCommand::Statusline => "configure which items appear in the status line",
+            SlashCommand::Tree => "manage conversation branches: /tree [label|go|list]",
             SlashCommand::Ps => "list background terminals",
             SlashCommand::Clean => "stop all background terminals",
             SlashCommand::MemoryDrop => "DO NOT USE",
@@ -113,6 +115,7 @@ impl SlashCommand {
                 | SlashCommand::Rename
                 | SlashCommand::Plan
                 | SlashCommand::SandboxReadRoot
+                | SlashCommand::Tree
         )
     }
 
@@ -136,7 +139,8 @@ impl SlashCommand {
             | SlashCommand::Plan
             | SlashCommand::Logout
             | SlashCommand::MemoryDrop
-            | SlashCommand::MemoryUpdate => false,
+            | SlashCommand::MemoryUpdate
+            | SlashCommand::Tree => false,
             SlashCommand::Diff
             | SlashCommand::Rename
             | SlashCommand::Mention

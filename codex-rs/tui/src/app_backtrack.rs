@@ -627,6 +627,14 @@ pub(crate) fn user_count(cells: &[Arc<dyn crate::history_cell::HistoryCell>]) ->
     user_positions_iter(cells).count()
 }
 
+/// Public version of `nth_user_position` for use by the tree command.
+pub(crate) fn nth_user_position_pub(
+    cells: &[Arc<dyn crate::history_cell::HistoryCell>],
+    nth: usize,
+) -> Option<usize> {
+    nth_user_position(cells, nth)
+}
+
 fn nth_user_position(
     cells: &[Arc<dyn crate::history_cell::HistoryCell>],
     nth: usize,

@@ -1,6 +1,7 @@
 use crate::app_backtrack::BacktrackState;
 use crate::app_event::AppEvent;
 use crate::app_event::ExitMode;
+use crate::conversation_tree::ConversationTree;
 #[cfg(target_os = "windows")]
 use crate::app_event::WindowsSandboxEnableMode;
 use crate::app_event_sender::AppEventSender;
@@ -544,6 +545,9 @@ pub(crate) struct App {
     // Shared across ChatWidget instances so invalid status-line config warnings only emit once.
     status_line_invalid_items_warned: Arc<AtomicBool>,
 
+    // Conversation tree for branching
+    pub(crate) conversation_tree: crate::conversation_tree::ConversationTree,
+
     // Esc-backtracking state grouped
     pub(crate) backtrack: crate::app_backtrack::BacktrackState,
     /// When set, the next draw re-renders the transcript into terminal scrollback once.
@@ -901,6 +905,7 @@ impl App {
         self.transcript_cells.clear();
         self.deferred_history_lines.clear();
         self.has_emitted_history_lines = false;
+        self.conversation_tree.clear();
         self.backtrack = BacktrackState::default();
         self.backtrack_render_pending = false;
         tui.terminal.clear_scrollback()?;
@@ -1205,6 +1210,7 @@ impl App {
             has_emitted_history_lines: false,
             commit_anim_running: Arc::new(AtomicBool::new(false)),
             status_line_invalid_items_warned: status_line_invalid_items_warned.clone(),
+            conversation_tree: ConversationTree::new(),
             backtrack: BacktrackState::default(),
             backtrack_render_pending: false,
             feedback: feedback.clone(),
@@ -1595,6 +1601,116 @@ impl App {
                     );
                 }
 
+                tui.frame_requester().schedule_frame();
+            }
+            AppEvent::TreeShow => {
+                let current_user_turns =
+                    crate::app_backtrack::user_count(&self.transcript_cells);
+                let lines = self.conversation_tree.display_lines(current_user_turns);
+                let display_lines: Vec<Line<'static>> =
+                    lines.into_iter().map(|s| Line::from(s.dim())).collect();
+                self.chat_widget.add_plain_history_lines(display_lines);
+                tui.frame_requester().schedule_frame();
+            }
+            AppEvent::TreeLabel { label } => {
+                let current_user_turns =
+                    crate::app_backtrack::user_count(&self.transcript_cells);
+                if current_user_turns == 0 {
+                    self.chat_widget.add_error_message(
+                        "Cannot label: no user turns in the conversation yet.".to_string(),
+                    );
+                } else {
+                    self.conversation_tree
+                        .set_bookmark(label.clone(), current_user_turns);
+                    self.chat_widget.add_info_message(
+                        format!(
+                            "Bookmark '{label}' set at turn {current_user_turns}."
+                        ),
+                        None,
+                    );
+                }
+                tui.frame_requester().schedule_frame();
+            }
+            AppEvent::TreeGo { label } => {
+                let bookmark = self.conversation_tree.find_bookmark(&label).cloned();
+                if let Some(bookmark) = bookmark {
+                    let current_user_turns =
+                        crate::app_backtrack::user_count(&self.transcript_cells);
+                    if bookmark.nth_user_turn >= current_user_turns {
+                        self.chat_widget.add_error_message(format!(
+                            "Already at or before bookmark '{label}' (turn {}).",
+                            bookmark.nth_user_turn,
+                        ));
+                    } else {
+                        let num_turns_to_rollback =
+                            current_user_turns.saturating_sub(bookmark.nth_user_turn);
+                        let num_turns_to_rollback =
+                            u32::try_from(num_turns_to_rollback).unwrap_or(u32::MAX);
+
+                        // Save transcript cells after the bookmark as a branch.
+                        let branch_number = self
+                            .conversation_tree
+                            .branches
+                            .iter()
+                            .filter(|b| b.from_label == label)
+                            .count()
+                            + 1;
+                        if let Some(cut_idx) =
+                            crate::app_backtrack::nth_user_position_pub(
+                                &self.transcript_cells,
+                                bookmark.nth_user_turn,
+                            )
+                        {
+                            let branch_cells =
+                                self.transcript_cells[cut_idx..].to_vec();
+                            let branch_label =
+                                format!("{label}/branch-{branch_number}");
+                            self.conversation_tree.save_branch(
+                                label.clone(),
+                                Some(branch_label),
+                                branch_cells,
+                            );
+                        }
+
+                        // Roll back API state.
+                        self.chat_widget
+                            .submit_op(Op::ThreadRollback {
+                                num_turns: num_turns_to_rollback,
+                            });
+
+                        // Trim local transcript.
+                        crate::app_backtrack::trim_transcript_cells_drop_last_n_user_turns(
+                            &mut self.transcript_cells,
+                            num_turns_to_rollback,
+                        );
+                        self.backtrack_render_pending = true;
+
+                        self.chat_widget.add_info_message(
+                            format!(
+                                "Jumped back to bookmark '{label}' (turn {}). Previous work saved as a branch.",
+                                bookmark.nth_user_turn,
+                            ),
+                            Some("Tip: Use files to pass results between branches.".to_string()),
+                        );
+                    }
+                } else {
+                    let available: Vec<&str> = self
+                        .conversation_tree
+                        .bookmarks
+                        .iter()
+                        .map(|b| b.label.as_str())
+                        .collect();
+                    if available.is_empty() {
+                        self.chat_widget.add_error_message(format!(
+                            "Bookmark '{label}' not found. No bookmarks set yet — use /tree label <name> to create one."
+                        ));
+                    } else {
+                        self.chat_widget.add_error_message(format!(
+                            "Bookmark '{label}' not found. Available: {}",
+                            available.join(", "),
+                        ));
+                    }
+                }
                 tui.frame_requester().schedule_frame();
             }
             AppEvent::InsertHistoryCell(cell) => {
@@ -3186,6 +3302,7 @@ mod tests {
             enhanced_keys_supported: false,
             commit_anim_running: Arc::new(AtomicBool::new(false)),
             status_line_invalid_items_warned: Arc::new(AtomicBool::new(false)),
+            conversation_tree: ConversationTree::new(),
             backtrack: BacktrackState::default(),
             backtrack_render_pending: false,
             feedback: codex_feedback::CodexFeedback::new(),
@@ -3244,6 +3361,7 @@ mod tests {
                 enhanced_keys_supported: false,
                 commit_anim_running: Arc::new(AtomicBool::new(false)),
                 status_line_invalid_items_warned: Arc::new(AtomicBool::new(false)),
+                conversation_tree: ConversationTree::new(),
                 backtrack: BacktrackState::default(),
                 backtrack_render_pending: false,
                 feedback: codex_feedback::CodexFeedback::new(),
