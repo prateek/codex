@@ -22,11 +22,11 @@ pub(crate) fn build_thread_tree_rows(items: &[ThreadTreeItem]) -> Vec<(ThreadId,
     let mut roots: Vec<ThreadId> = Vec::new();
 
     for item in items {
-        if let Some(parent) = item.forked_from_id {
-            if by_id.contains_key(&parent) {
-                children.entry(parent).or_default().push(item.id);
-                continue;
-            }
+        if let Some(parent) = item.forked_from_id
+            && by_id.contains_key(&parent)
+        {
+            children.entry(parent).or_default().push(item.id);
+            continue;
         }
         roots.push(item.id);
     }
@@ -50,69 +50,68 @@ pub(crate) fn build_thread_tree_rows(items: &[ThreadTreeItem]) -> Vec<(ThreadId,
     let mut out: Vec<(ThreadId, String)> = Vec::with_capacity(items.len());
     let mut visited: HashSet<ThreadId> = HashSet::with_capacity(items.len());
 
-    fn walk(
-        node: ThreadId,
-        by_id: &HashMap<ThreadId, &ThreadTreeItem>,
-        children: &HashMap<ThreadId, Vec<ThreadId>>,
-        ancestor_last: &mut Vec<bool>,
-        out: &mut Vec<(ThreadId, String)>,
-        visited: &mut HashSet<ThreadId>,
-        is_last: bool,
-    ) {
-        if !visited.insert(node) {
-            return;
-        }
+    struct Walker<'a> {
+        by_id: &'a HashMap<ThreadId, &'a ThreadTreeItem>,
+        children: &'a HashMap<ThreadId, Vec<ThreadId>>,
+        out: &'a mut Vec<(ThreadId, String)>,
+        visited: &'a mut HashSet<ThreadId>,
+    }
 
-        let label = by_id
-            .get(&node)
-            .map(|it| it.label.as_str())
-            .unwrap_or("<unknown>");
+    impl Walker<'_> {
+        fn walk(
+            &mut self,
+            node: ThreadId,
+            ancestors_last: &mut Vec<bool>,
+            is_root: bool,
+            is_last: bool,
+        ) {
+            if !self.visited.insert(node) {
+                return;
+            }
 
-        let prefix = if ancestor_last.is_empty() {
-            String::new()
-        } else {
-            let mut s = String::new();
-            for last in ancestor_last.iter().copied().take(ancestor_last.len() - 1) {
-                if last {
-                    s.push_str("   ");
-                } else {
-                    s.push_str("│  ");
+            let label = self
+                .by_id
+                .get(&node)
+                .map(|it| it.label.as_str())
+                .unwrap_or("<unknown>");
+
+            let mut prefix = String::new();
+            if !is_root {
+                for last in ancestors_last.iter().copied() {
+                    if last {
+                        prefix.push_str("   ");
+                    } else {
+                        prefix.push_str("│  ");
+                    }
+                }
+                prefix.push_str(if is_last { "└─ " } else { "├─ " });
+            }
+
+            self.out.push((node, format!("{prefix}{label}")));
+
+            let kids = self.children.get(&node).map(Vec::as_slice).unwrap_or(&[]);
+            for (idx, child) in kids.iter().copied().enumerate() {
+                let child_is_last = idx + 1 == kids.len();
+                if !is_root {
+                    ancestors_last.push(is_last);
+                }
+                self.walk(child, ancestors_last, false, child_is_last);
+                if !is_root {
+                    ancestors_last.pop();
                 }
             }
-            s.push_str(if is_last { "└─ " } else { "├─ " });
-            s
-        };
-
-        out.push((node, format!("{prefix}{label}")));
-
-        let kids = children.get(&node).map(Vec::as_slice).unwrap_or(&[]);
-        for (idx, child) in kids.iter().copied().enumerate() {
-            let child_is_last = idx + 1 == kids.len();
-            ancestor_last.push(is_last);
-            walk(
-                child,
-                by_id,
-                children,
-                ancestor_last,
-                out,
-                visited,
-                child_is_last,
-            );
-            ancestor_last.pop();
         }
     }
 
+    let mut walker = Walker {
+        by_id: &by_id,
+        children: &children,
+        out: &mut out,
+        visited: &mut visited,
+    };
     for (idx, root) in roots.iter().copied().enumerate() {
         let is_last = idx + 1 == roots.len();
-        walk(
-            root,
-            &by_id,
-            &children,
-            &mut Vec::new(),
-            &mut out,
-            &mut visited,
-            is_last,
-        );
+        walker.walk(root, &mut Vec::new(), true, is_last);
     }
 
     // Ensure every item appears even if parent pointers create a cycle.
