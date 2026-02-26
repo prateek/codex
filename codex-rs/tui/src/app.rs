@@ -546,6 +546,8 @@ pub(crate) struct App {
 
     // Esc-backtracking state grouped
     pub(crate) backtrack: crate::app_backtrack::BacktrackState,
+    /// Named `/tree` branch points captured as rollout snapshots.
+    pub(crate) tree_labels: BTreeMap<String, crate::app_tree::TreeLabelSnapshot>,
     /// When set, the next draw re-renders the transcript into terminal scrollback once.
     ///
     /// This is used after a confirmed thread rollback to ensure scrollback reflects the trimmed
@@ -1206,6 +1208,7 @@ impl App {
             commit_anim_running: Arc::new(AtomicBool::new(false)),
             status_line_invalid_items_warned: status_line_invalid_items_warned.clone(),
             backtrack: BacktrackState::default(),
+            tree_labels: BTreeMap::new(),
             backtrack_render_pending: false,
             feedback: feedback.clone(),
             feedback_audience,
@@ -1429,6 +1432,7 @@ impl App {
                 };
                 self.chat_widget = ChatWidget::new(init, self.server.clone());
                 self.reset_thread_event_state();
+                self.clear_tree_labels();
                 if let Some(summary) = summary {
                     let mut lines: Vec<Line<'static>> = vec![summary.usage_line.clone().into()];
                     if let Some(command) = summary.resume_command {
@@ -1502,6 +1506,7 @@ impl App {
                                     resumed.session_configured,
                                 );
                                 self.reset_thread_event_state();
+                                self.clear_tree_labels();
                                 if let Some(summary) = summary {
                                     let mut lines: Vec<Line<'static>> =
                                         vec![summary.usage_line.clone().into()];
@@ -1596,6 +1601,18 @@ impl App {
                 }
 
                 tui.frame_requester().schedule_frame();
+            }
+            AppEvent::OpenTreeMenu => {
+                self.open_tree_menu();
+            }
+            AppEvent::PromptTreeLabel => {
+                self.chat_widget.show_tree_label_prompt();
+            }
+            AppEvent::SaveTreeLabel { label } => {
+                self.save_tree_label(label).await;
+            }
+            AppEvent::JumpToTreeLabel { label } => {
+                self.jump_to_tree_label(tui, label).await;
             }
             AppEvent::InsertHistoryCell(cell) => {
                 let cell: Arc<dyn HistoryCell> = cell.into();
@@ -3187,6 +3204,7 @@ mod tests {
             commit_anim_running: Arc::new(AtomicBool::new(false)),
             status_line_invalid_items_warned: Arc::new(AtomicBool::new(false)),
             backtrack: BacktrackState::default(),
+            tree_labels: BTreeMap::new(),
             backtrack_render_pending: false,
             feedback: codex_feedback::CodexFeedback::new(),
             feedback_audience: FeedbackAudience::External,
@@ -3245,6 +3263,7 @@ mod tests {
                 commit_anim_running: Arc::new(AtomicBool::new(false)),
                 status_line_invalid_items_warned: Arc::new(AtomicBool::new(false)),
                 backtrack: BacktrackState::default(),
+                tree_labels: BTreeMap::new(),
                 backtrack_render_pending: false,
                 feedback: codex_feedback::CodexFeedback::new(),
                 feedback_audience: FeedbackAudience::External,

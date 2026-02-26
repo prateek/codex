@@ -3251,6 +3251,9 @@ impl ChatWidget {
             SlashCommand::Fork => {
                 self.app_event_tx.send(AppEvent::ForkCurrentSession);
             }
+            SlashCommand::Tree => {
+                self.app_event_tx.send(AppEvent::OpenTreeMenu);
+            }
             SlashCommand::Init => {
                 let init_target = self.config.cwd.join(DEFAULT_PROJECT_DOC_FILENAME);
                 if init_target.exists() {
@@ -3527,6 +3530,17 @@ impl ChatWidget {
                     .send(AppEvent::CodexOp(Op::SetThreadName { name }));
                 self.bottom_pane.drain_pending_submission_state();
             }
+            SlashCommand::Tree if !trimmed.is_empty() => {
+                let Some((prepared_args, _prepared_elements)) =
+                    self.bottom_pane.prepare_inline_args_submission(false)
+                else {
+                    return;
+                };
+                self.app_event_tx.send(AppEvent::SaveTreeLabel {
+                    label: prepared_args,
+                });
+                self.bottom_pane.drain_pending_submission_state();
+            }
             SlashCommand::Plan if !trimmed.is_empty() => {
                 self.dispatch_command(cmd);
                 if self.active_mode_kind() != ModeKind::Plan {
@@ -3618,6 +3632,19 @@ impl ChatWidget {
             }),
         );
 
+        self.bottom_pane.show_view(Box::new(view));
+    }
+
+    pub(crate) fn show_tree_label_prompt(&mut self) {
+        let tx = self.app_event_tx.clone();
+        let view = CustomPromptView::new(
+            "Set tree label".to_string(),
+            "Type a label and press Enter".to_string(),
+            None,
+            Box::new(move |label: String| {
+                tx.send(AppEvent::SaveTreeLabel { label });
+            }),
+        );
         self.bottom_pane.show_view(Box::new(view));
     }
 

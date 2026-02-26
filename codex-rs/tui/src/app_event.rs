@@ -60,6 +60,22 @@ pub(crate) enum AppEvent {
     /// Fork the current session into a new thread.
     ForkCurrentSession,
 
+    /// Open the `/tree` menu.
+    OpenTreeMenu,
+
+    /// Open a prompt to set a `/tree` label for the current node.
+    PromptTreeLabel,
+
+    /// Save or update a `/tree` label for the current node.
+    SaveTreeLabel {
+        label: String,
+    },
+
+    /// Jump to a previously saved `/tree` label.
+    JumpToTreeLabel {
+        label: String,
+    },
+
     /// Request to exit the application.
     ///
     /// Use `ShutdownFirst` for user-initiated quits so core cleanup runs and the

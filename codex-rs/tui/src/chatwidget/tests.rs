@@ -3974,6 +3974,30 @@ async fn slash_fork_requests_current_fork() {
 }
 
 #[tokio::test]
+async fn slash_tree_opens_tree_menu() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
+
+    chat.dispatch_command(SlashCommand::Tree);
+
+    assert_matches!(rx.try_recv(), Ok(AppEvent::OpenTreeMenu));
+}
+
+#[tokio::test]
+async fn slash_tree_with_inline_label_dispatches_save_event() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
+
+    chat.bottom_pane
+        .set_composer_text("/tree baseline".to_string(), Vec::new(), Vec::new());
+    chat.handle_key_event(KeyEvent::from(KeyCode::Enter));
+
+    match rx.try_recv() {
+        Ok(AppEvent::SaveTreeLabel { label }) => assert_eq!(label, "baseline"),
+        Ok(other) => panic!("expected SaveTreeLabel app event, got {other:?}"),
+        Err(err) => panic!("expected SaveTreeLabel app event, got {err:?}"),
+    }
+}
+
+#[tokio::test]
 async fn slash_rollout_displays_current_path() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
     let rollout_path = PathBuf::from("/tmp/codex-test-rollout.jsonl");
