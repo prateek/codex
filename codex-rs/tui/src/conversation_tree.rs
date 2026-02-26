@@ -105,8 +105,9 @@ impl ConversationTree {
                                 .is_some()
                         })
                         .count();
+                    let turn_word = if user_cells == 1 { "turn" } else { "turns" };
                     lines.push(format!(
-                        "    {connector} branch: {branch_label} ({user_cells} turns)"
+                        "    {connector} branch: {branch_label} ({user_cells} {turn_word})"
                     ));
                 }
             }
@@ -168,7 +169,7 @@ mod tests {
         assert!(lines[1].contains("base"));
         assert!(lines[1].contains("[turn 2]"));
         assert!(lines[2].contains("explore-a"));
-        assert!(lines[2].contains("1 turns"));
+        assert!(lines[2].contains("1 turn"));
         assert!(lines[3].contains("current"));
     }
 
