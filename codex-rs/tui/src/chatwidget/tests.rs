@@ -7392,3 +7392,27 @@ async fn review_queues_user_messages_snapshot() {
     .unwrap();
     assert_snapshot!(term.backend().vt100().screen().contents());
 }
+
+#[tokio::test]
+async fn tree_slash_command_dispatches_tree_show() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
+    chat.dispatch_command(SlashCommand::Tree);
+
+    let event = rx.recv().await.unwrap();
+    assert!(matches!(event, AppEvent::TreeShow));
+}
+
+#[tokio::test]
+async fn tree_slash_command_disabled_during_task() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(None).await;
+    chat.bottom_pane.set_task_running(true);
+    chat.dispatch_command(SlashCommand::Tree);
+
+    let cells = drain_insert_history(&mut rx);
+    assert!(
+        !cells.is_empty(),
+        "expected error when tree used during task"
+    );
+    let blob = lines_to_single_string(cells.last().unwrap());
+    assert!(blob.contains("disabled"), "error should mention disabled");
+}

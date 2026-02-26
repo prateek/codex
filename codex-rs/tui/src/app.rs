@@ -1,7 +1,6 @@
 use crate::app_backtrack::BacktrackState;
 use crate::app_event::AppEvent;
 use crate::app_event::ExitMode;
-use crate::conversation_tree::ConversationTree;
 #[cfg(target_os = "windows")]
 use crate::app_event::WindowsSandboxEnableMode;
 use crate::app_event_sender::AppEventSender;
@@ -12,6 +11,7 @@ use crate::bottom_pane::SelectionViewParams;
 use crate::bottom_pane::popup_consts::standard_popup_hint_line;
 use crate::chatwidget::ChatWidget;
 use crate::chatwidget::ExternalEditorState;
+use crate::conversation_tree::ConversationTree;
 use crate::cwd_prompt::CwdPromptAction;
 use crate::diff_render::DiffSummary;
 use crate::exec_command::strip_bash_lc_and_escape;
@@ -1604,8 +1604,7 @@ impl App {
                 tui.frame_requester().schedule_frame();
             }
             AppEvent::TreeShow => {
-                let current_user_turns =
-                    crate::app_backtrack::user_count(&self.transcript_cells);
+                let current_user_turns = crate::app_backtrack::user_count(&self.transcript_cells);
                 let lines = self.conversation_tree.display_lines(current_user_turns);
                 let display_lines: Vec<Line<'static>> =
                     lines.into_iter().map(|s| Line::from(s.dim())).collect();
@@ -1613,8 +1612,7 @@ impl App {
                 tui.frame_requester().schedule_frame();
             }
             AppEvent::TreeLabel { label } => {
-                let current_user_turns =
-                    crate::app_backtrack::user_count(&self.transcript_cells);
+                let current_user_turns = crate::app_backtrack::user_count(&self.transcript_cells);
                 if current_user_turns == 0 {
                     self.chat_widget.add_error_message(
                         "Cannot label: no user turns in the conversation yet.".to_string(),
@@ -1623,9 +1621,7 @@ impl App {
                     self.conversation_tree
                         .set_bookmark(label.clone(), current_user_turns);
                     self.chat_widget.add_info_message(
-                        format!(
-                            "Bookmark '{label}' set at turn {current_user_turns}."
-                        ),
+                        format!("Bookmark '{label}' set at turn {current_user_turns}."),
                         None,
                     );
                 }
@@ -1655,16 +1651,12 @@ impl App {
                             .filter(|b| b.from_label == label)
                             .count()
                             + 1;
-                        if let Some(cut_idx) =
-                            crate::app_backtrack::nth_user_position_pub(
-                                &self.transcript_cells,
-                                bookmark.nth_user_turn,
-                            )
-                        {
-                            let branch_cells =
-                                self.transcript_cells[cut_idx..].to_vec();
-                            let branch_label =
-                                format!("{label}/branch-{branch_number}");
+                        if let Some(cut_idx) = crate::app_backtrack::nth_user_position_pub(
+                            &self.transcript_cells,
+                            bookmark.nth_user_turn,
+                        ) {
+                            let branch_cells = self.transcript_cells[cut_idx..].to_vec();
+                            let branch_label = format!("{label}/branch-{branch_number}");
                             self.conversation_tree.save_branch(
                                 label.clone(),
                                 Some(branch_label),
@@ -1673,10 +1665,9 @@ impl App {
                         }
 
                         // Roll back API state.
-                        self.chat_widget
-                            .submit_op(Op::ThreadRollback {
-                                num_turns: num_turns_to_rollback,
-                            });
+                        self.chat_widget.submit_op(Op::ThreadRollback {
+                            num_turns: num_turns_to_rollback,
+                        });
 
                         // Trim local transcript.
                         crate::app_backtrack::trim_transcript_cells_drop_last_n_user_turns(
@@ -4160,5 +4151,116 @@ mod tests {
             summary.resume_command,
             Some("codex resume my-session".to_string())
         );
+    }
+
+    #[tokio::test]
+    async fn tree_label_sets_bookmark_at_current_position() {
+        let (mut app, mut rx, _op_rx) = make_test_app_with_channels().await;
+        app.transcript_cells = vec![
+            Arc::new(UserHistoryCell {
+                message: "first".to_string(),
+                text_elements: Vec::new(),
+                local_image_paths: Vec::new(),
+                remote_image_urls: Vec::new(),
+            }) as Arc<dyn HistoryCell>,
+            Arc::new(AgentMessageCell::new(vec![Line::from("response")], true))
+                as Arc<dyn HistoryCell>,
+        ];
+
+        app.app_event_tx.send(AppEvent::TreeLabel {
+            label: "base".to_string(),
+        });
+        let event = rx.recv().await.unwrap();
+        assert!(matches!(event, AppEvent::TreeLabel { label } if label == "base"));
+
+        assert_eq!(user_count(&app.transcript_cells), 1);
+        app.conversation_tree.set_bookmark("base".to_string(), 1);
+        let bm = app.conversation_tree.find_bookmark("base").unwrap();
+        assert_eq!(bm.nth_user_turn, 1);
+    }
+
+    #[tokio::test]
+    async fn tree_go_saves_branch_and_trims_transcript() {
+        let (mut app, _rx, _op_rx) = make_test_app_with_channels().await;
+        app.transcript_cells = vec![
+            Arc::new(UserHistoryCell {
+                message: "first".to_string(),
+                text_elements: Vec::new(),
+                local_image_paths: Vec::new(),
+                remote_image_urls: Vec::new(),
+            }) as Arc<dyn HistoryCell>,
+            Arc::new(AgentMessageCell::new(vec![Line::from("response1")], true))
+                as Arc<dyn HistoryCell>,
+            Arc::new(UserHistoryCell {
+                message: "second".to_string(),
+                text_elements: Vec::new(),
+                local_image_paths: Vec::new(),
+                remote_image_urls: Vec::new(),
+            }) as Arc<dyn HistoryCell>,
+            Arc::new(AgentMessageCell::new(vec![Line::from("response2")], false))
+                as Arc<dyn HistoryCell>,
+        ];
+
+        app.conversation_tree.set_bookmark("base".to_string(), 1);
+        assert_eq!(user_count(&app.transcript_cells), 2);
+
+        let num_turns_to_rollback = 1u32;
+        if let Some(cut_idx) = crate::app_backtrack::nth_user_position_pub(&app.transcript_cells, 1)
+        {
+            let branch_cells = app.transcript_cells[cut_idx..].to_vec();
+            app.conversation_tree.save_branch(
+                "base".to_string(),
+                Some("base/branch-1".to_string()),
+                branch_cells,
+            );
+        }
+        crate::app_backtrack::trim_transcript_cells_drop_last_n_user_turns(
+            &mut app.transcript_cells,
+            num_turns_to_rollback,
+        );
+
+        assert_eq!(user_count(&app.transcript_cells), 1);
+        assert_eq!(app.conversation_tree.branches.len(), 1);
+        let branch = &app.conversation_tree.branches[0];
+        assert_eq!(branch.from_label, "base");
+        assert_eq!(branch.label.as_deref(), Some("base/branch-1"));
+        assert_eq!(branch.cells.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn tree_display_shows_bookmarks_and_branches() {
+        let mut app = make_test_app().await;
+        app.conversation_tree.set_bookmark("base".to_string(), 2);
+        app.conversation_tree.save_branch(
+            "base".to_string(),
+            Some("explore-a".to_string()),
+            vec![Arc::new(UserHistoryCell {
+                message: "explore".to_string(),
+                text_elements: Vec::new(),
+                local_image_paths: Vec::new(),
+                remote_image_urls: Vec::new(),
+            }) as Arc<dyn HistoryCell>],
+        );
+
+        let lines = app.conversation_tree.display_lines(3);
+        assert_eq!(lines[0], "Conversation tree:");
+        assert!(lines[1].contains("base"));
+        assert!(lines[1].contains("[turn 2]"));
+        assert!(lines[2].contains("explore-a"));
+        assert!(lines[3].contains("current"));
+        assert!(lines[3].contains("[turn 3]"));
+    }
+
+    #[tokio::test]
+    async fn tree_clear_on_session_reset() {
+        let mut app = make_test_app().await;
+        app.conversation_tree.set_bookmark("base".to_string(), 1);
+        app.conversation_tree
+            .save_branch("base".to_string(), None, Vec::new());
+
+        assert!(!app.conversation_tree.bookmarks.is_empty());
+        app.conversation_tree.clear();
+        assert!(app.conversation_tree.bookmarks.is_empty());
+        assert!(app.conversation_tree.branches.is_empty());
     }
 }

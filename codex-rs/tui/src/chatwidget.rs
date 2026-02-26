@@ -3600,34 +3600,24 @@ impl ChatWidget {
                         if let Some(label) = parts.get(1) {
                             let label = label.trim().to_string();
                             if label.is_empty() {
-                                self.add_error_message(
-                                    "Usage: /tree label <name>".to_string(),
-                                );
+                                self.add_error_message("Usage: /tree label <name>".to_string());
                             } else {
-                                self.app_event_tx
-                                    .send(AppEvent::TreeLabel { label });
+                                self.app_event_tx.send(AppEvent::TreeLabel { label });
                             }
                         } else {
-                            self.add_error_message(
-                                "Usage: /tree label <name>".to_string(),
-                            );
+                            self.add_error_message("Usage: /tree label <name>".to_string());
                         }
                     }
                     "go" => {
                         if let Some(label) = parts.get(1) {
                             let label = label.trim().to_string();
                             if label.is_empty() {
-                                self.add_error_message(
-                                    "Usage: /tree go <label>".to_string(),
-                                );
+                                self.add_error_message("Usage: /tree go <label>".to_string());
                             } else {
-                                self.app_event_tx
-                                    .send(AppEvent::TreeGo { label });
+                                self.app_event_tx.send(AppEvent::TreeGo { label });
                             }
                         } else {
-                            self.add_error_message(
-                                "Usage: /tree go <label>".to_string(),
-                            );
+                            self.add_error_message("Usage: /tree go <label>".to_string());
                         }
                     }
                     "list" => {

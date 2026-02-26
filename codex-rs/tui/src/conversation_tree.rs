@@ -95,10 +95,7 @@ impl ConversationTree {
                     } else {
                         "├─"
                     };
-                    let branch_label = branch
-                        .label
-                        .as_deref()
-                        .unwrap_or("(unnamed)");
+                    let branch_label = branch.label.as_deref().unwrap_or("(unnamed)");
                     let user_cells: usize = branch
                         .cells
                         .iter()

@@ -57,9 +57,13 @@ pub(crate) enum AppEvent {
     /// Show the conversation tree.
     TreeShow,
     /// Set a bookmark at the current position.
-    TreeLabel { label: String },
+    TreeLabel {
+        label: String,
+    },
     /// Jump back to a bookmarked position, saving current work as a branch.
-    TreeGo { label: String },
+    TreeGo {
+        label: String,
+    },
 
     /// Open the resume picker inside the running TUI session.
     OpenResumePicker,
