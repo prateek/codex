@@ -855,6 +855,151 @@ impl App {
         });
     }
 
+    async fn open_tree_picker(&mut self) {
+        let thread_ids: Vec<ThreadId> = self.thread_event_channels.keys().cloned().collect();
+        for thread_id in thread_ids {
+            if self.server.get_thread(thread_id).await.is_err() {
+                self.thread_event_channels.remove(&thread_id);
+            }
+        }
+
+        if self.thread_event_channels.is_empty() {
+            self.chat_widget
+                .add_info_message("No branches available yet.".to_string(), None);
+            return;
+        }
+
+        let mut infos = Vec::with_capacity(self.thread_event_channels.len());
+        for thread_id in self.thread_event_channels.keys().copied() {
+            let Some(channel) = self.thread_event_channels.get(&thread_id) else {
+                continue;
+            };
+            let store = channel.store.lock().await;
+            let (forked_from_id, label) = store
+                .session_configured
+                .as_ref()
+                .and_then(|ev| match &ev.msg {
+                    EventMsg::SessionConfigured(cfg) => Some((
+                        cfg.forked_from_id,
+                        cfg.thread_name
+                            .clone()
+                            .unwrap_or_else(|| thread_id.to_string()),
+                    )),
+                    _ => None,
+                })
+                .unwrap_or_else(|| (None, thread_id.to_string()));
+
+            infos.push(crate::thread_tree::ThreadTreeItem {
+                id: thread_id,
+                forked_from_id,
+                label,
+            });
+        }
+
+        let rows = crate::thread_tree::build_thread_tree_rows(&infos);
+
+        let mut initial_selected_idx = None;
+        let mut items: Vec<SelectionItem> = Vec::with_capacity(rows.len() + 1);
+
+        items.push(SelectionItem {
+            name: "New branch from current".to_string(),
+            description: Some("Fork the current thread and switch to the new branch.".to_string()),
+            actions: vec![Box::new(|tx| {
+                tx.send(AppEvent::ForkCurrentSessionKeepParent);
+            })],
+            dismiss_on_select: true,
+            search_value: Some("new branch fork".to_string()),
+            ..Default::default()
+        });
+
+        for (idx, (thread_id, display_name)) in rows.iter().cloned().enumerate() {
+            if self.active_thread_id == Some(thread_id) {
+                initial_selected_idx = Some(idx + 1);
+            }
+            let id = thread_id;
+            items.push(SelectionItem {
+                name: display_name,
+                description: Some(thread_id.to_string()),
+                is_current: self.active_thread_id == Some(thread_id),
+                actions: vec![Box::new(move |tx| {
+                    tx.send(AppEvent::SelectAgentThread(id));
+                })],
+                dismiss_on_select: true,
+                search_value: Some(thread_id.to_string()),
+                ..Default::default()
+            });
+        }
+
+        self.chat_widget.show_selection_view(SelectionViewParams {
+            title: Some("Tree".to_string()),
+            subtitle: Some("Select a branch to focus".to_string()),
+            footer_hint: Some(standard_popup_hint_line()),
+            items,
+            initial_selected_idx,
+            is_searchable: true,
+            search_placeholder: Some("Search branches by id".to_string()),
+            col_width_mode: crate::bottom_pane::ColumnWidthMode::AutoAllRows,
+            ..Default::default()
+        });
+    }
+
+    async fn fork_current_session_keep_parent(&mut self, tui: &mut tui::Tui) -> Result<()> {
+        let Some(path) = self.chat_widget.rollout_path() else {
+            self.chat_widget.add_error_message(
+                "A thread must contain at least one turn before it can be forked.".to_string(),
+            );
+            return Ok(());
+        };
+
+        if !path.exists() {
+            self.chat_widget.add_error_message(
+                "A thread must contain at least one turn before it can be forked.".to_string(),
+            );
+            return Ok(());
+        }
+
+        let forked = self
+            .server
+            .fork_thread(usize::MAX, self.config.clone(), path.clone(), false)
+            .await?;
+
+        let event = Event {
+            id: String::new(),
+            msg: EventMsg::SessionConfigured(forked.session_configured.clone()),
+        };
+        let channel =
+            ThreadEventChannel::new_with_session_configured(THREAD_EVENT_CHANNEL_CAPACITY, event);
+        let sender = channel.sender.clone();
+        let store = Arc::clone(&channel.store);
+        let thread_id = forked.thread_id;
+        let thread = forked.thread;
+        self.thread_event_channels.insert(thread_id, channel);
+
+        tokio::spawn(async move {
+            loop {
+                let event = match thread.next_event().await {
+                    Ok(event) => event,
+                    Err(err) => {
+                        tracing::debug!("forked thread {thread_id} listener stopped: {err}");
+                        break;
+                    }
+                };
+                let should_send = {
+                    let mut guard = store.lock().await;
+                    guard.push_event(event.clone());
+                    guard.active
+                };
+                if should_send && let Err(err) = sender.send(event).await {
+                    tracing::debug!("forked thread {thread_id} channel closed: {err}");
+                    break;
+                }
+            }
+        });
+
+        self.select_agent_thread(tui, thread_id).await?;
+        Ok(())
+    }
+
     async fn select_agent_thread(&mut self, tui: &mut tui::Tui, thread_id: ThreadId) -> Result<()> {
         if self.active_thread_id == Some(thread_id) {
             return Ok(());
@@ -1595,6 +1740,15 @@ impl App {
                     );
                 }
 
+                tui.frame_requester().schedule_frame();
+            }
+            AppEvent::ForkCurrentSessionKeepParent => {
+                self.otel_manager
+                    .counter("codex.thread.fork", 1, &[("source", "tree")]);
+                if let Err(err) = self.fork_current_session_keep_parent(tui).await {
+                    self.chat_widget
+                        .add_error_message(format!("Failed to create branch: {err}"));
+                }
                 tui.frame_requester().schedule_frame();
             }
             AppEvent::InsertHistoryCell(cell) => {
@@ -2363,6 +2517,9 @@ impl App {
             }
             AppEvent::OpenAgentPicker => {
                 self.open_agent_picker().await;
+            }
+            AppEvent::OpenTreePicker => {
+                self.open_tree_picker().await;
             }
             AppEvent::SelectAgentThread(thread_id) => {
                 self.select_agent_thread(tui, thread_id).await?;

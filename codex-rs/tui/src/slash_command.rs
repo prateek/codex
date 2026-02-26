@@ -31,6 +31,7 @@ pub enum SlashCommand {
     Plan,
     Collab,
     Agent,
+    Tree,
     // Undo,
     Diff,
     Mention,
@@ -84,6 +85,7 @@ impl SlashCommand {
             SlashCommand::Plan => "switch to Plan mode",
             SlashCommand::Collab => "change collaboration mode (experimental)",
             SlashCommand::Agent => "switch the active agent thread",
+            SlashCommand::Tree => "view and switch between conversation branches",
             SlashCommand::Approvals => "choose what Codex is allowed to do",
             SlashCommand::Permissions => "choose what Codex is allowed to do",
             SlashCommand::ElevateSandbox => "set up elevated agent sandbox",
@@ -111,6 +113,7 @@ impl SlashCommand {
             self,
             SlashCommand::Review
                 | SlashCommand::Rename
+                | SlashCommand::Tree
                 | SlashCommand::Plan
                 | SlashCommand::SandboxReadRoot
         )
@@ -154,6 +157,7 @@ impl SlashCommand {
             SlashCommand::TestApproval => true,
             SlashCommand::Collab => true,
             SlashCommand::Agent => true,
+            SlashCommand::Tree => true,
             SlashCommand::Statusline => false,
         }
     }

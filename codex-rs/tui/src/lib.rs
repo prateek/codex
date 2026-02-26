@@ -105,6 +105,7 @@ mod streaming;
 mod style;
 mod terminal_palette;
 mod text_formatting;
+mod thread_tree;
 mod tooltips;
 mod tui;
 mod ui_consts;

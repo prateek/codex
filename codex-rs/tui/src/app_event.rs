@@ -48,6 +48,8 @@ pub(crate) enum AppEvent {
     CodexEvent(Event),
     /// Open the agent picker for switching active threads.
     OpenAgentPicker,
+    /// Open the tree picker for switching between branches.
+    OpenTreePicker,
     /// Switch the active thread to the selected agent.
     SelectAgentThread(ThreadId),
 
@@ -59,6 +61,10 @@ pub(crate) enum AppEvent {
 
     /// Fork the current session into a new thread.
     ForkCurrentSession,
+    /// Fork the current session into a new thread, keeping the current thread open.
+    ///
+    /// This is the "branching" primitive used by `/tree`.
+    ForkCurrentSessionKeepParent,
 
     /// Request to exit the application.
     ///
